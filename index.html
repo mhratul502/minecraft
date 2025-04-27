@@ -1,0 +1,157 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MiniCraft - With Block Placing</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.150.1/examples/js/controls/PointerLockControls.js"></script>
+
+<script>
+// Scene setup
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB); // Sky blue
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Lights
+const light = new THREE.HemisphereLight(0xffffff, 0x444444);
+light.position.set(0, 200, 0);
+scene.add(light);
+
+// Texture loader
+const textureLoader = new THREE.TextureLoader();
+const grassTexture = textureLoader.load('https://i.imgur.com/4KX0W7N.png');
+const dirtTexture = textureLoader.load('https://i.imgur.com/WI7czwv.png');
+const stoneTexture = textureLoader.load('https://i.imgur.com/GWJ2bD9.png');
+
+// Create ground (grass blocks)
+const groundSize = 30;
+const blockSize = 1;
+
+let blocks = []; // store blocks for breaking and placing
+
+for (let x = -groundSize/2; x < groundSize/2; x++) {
+  for (let z = -groundSize/2; z < groundSize/2; z++) {
+    const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
+    const material = new THREE.MeshLambertMaterial({ map: grassTexture });
+    const block = new THREE.Mesh(geometry, material);
+    block.position.set(x * blockSize, -blockSize/2, z * blockSize);
+    scene.add(block);
+    blocks.push(block);
+  }
+}
+
+// Pointer Lock Controls
+const controls = new THREE.PointerLockControls(camera, document.body);
+document.addEventListener('click', () => {
+  controls.lock();
+}, false);
+
+// Movement
+const velocity = new THREE.Vector3();
+const direction = new THREE.Vector3();
+const move = { forward: false, backward: false, left: false, right: false };
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyW') move.forward = true;
+  if (e.code === 'KeyS') move.backward = true;
+  if (e.code === 'KeyA') move.left = true;
+  if (e.code === 'KeyD') move.right = true;
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'KeyW') move.forward = false;
+  if (e.code === 'KeyS') move.backward = false;
+  if (e.code === 'KeyA') move.left = false;
+  if (e.code === 'KeyD') move.right = false;
+});
+
+// Block interaction
+let raycaster = new THREE.Raycaster();
+let mouse = new THREE.Vector2();
+let selectedBlock = null;
+
+document.addEventListener('mousemove', (event) => {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+});
+
+document.addEventListener('mousedown', (event) => {
+  if (event.button === 0) { // Left-click - Break block
+    if (selectedBlock) {
+      scene.remove(selectedBlock);
+      blocks = blocks.filter(block => block !== selectedBlock);
+    }
+  }
+  if (event.button === 2) { // Right-click - Place block
+    if (selectedBlock) {
+      const newBlock = new THREE.Mesh(
+        new THREE.BoxGeometry(blockSize, blockSize, blockSize),
+        new THREE.MeshLambertMaterial({ map: grassTexture })
+      );
+      newBlock.position.set(selectedBlock.position.x, selectedBlock.position.y + blockSize, selectedBlock.position.z);
+      scene.add(newBlock);
+      blocks.push(newBlock);
+    }
+  }
+});
+
+// Raycast to detect block under the cursor
+function updateSelectedBlock() {
+  raycaster.updateMatrixWorld();
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(blocks);
+
+  if (intersects.length > 0) {
+    selectedBlock = intersects[0].object;
+  } else {
+    selectedBlock = null;
+  }
+}
+
+// Set initial camera position
+camera.position.y = 2;
+camera.position.z = 5;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  updateSelectedBlock();
+
+  if (controls.isLocked) {
+    direction.z = Number(move.forward) - Number(move.backward);
+    direction.x = Number(move.right) - Number(move.left);
+    direction.normalize(); // ensures consistent movement speed in all directions
+
+    const speed = 0.05;
+    if (move.forward || move.backward) controls.moveForward(direction.z * speed);
+    if (move.left || move.right) controls.moveRight(direction.x * speed);
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// Resize
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+</body>
+</html>
