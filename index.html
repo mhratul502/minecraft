@@ -1,157 +1,144 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>MiniCraft - With Block Placing</title>
-  <style>
-    body { margin: 0; overflow: hidden; }
-    canvas { display: block; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Castle 2 Raw Materials Tracker</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3f1ec;--card:#fff;--tx:#1f2421;--mut:#6b726d;--line:#dcd8cf;--acc:#3f8f4f;--acc2:#2d6a3a;--bar:#e4e1d8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#16191a;--card:#1f2425;--tx:#e8ece9;--mut:#939b95;--line:#2f3637;--acc:#5fbf72;--acc2:#4aa85d;--bar:#2b3233}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#16191a;--card:#1f2425;--tx:#e8ece9;--mut:#939b95;--line:#2f3637;--acc:#5fbf72;--acc2:#4aa85d;--bar:#2b3233}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
+header{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);padding:12px 14px 8px;border-bottom:1px solid var(--line);z-index:5}
+h1{font-size:18px;margin:0 0 6px}
+.bar{height:10px;background:var(--bar);border-radius:6px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--acc);width:0;transition:width .2s}
+.sum{color:var(--mut);font-size:13px;margin:4px 0 8px}
+.tools{display:flex;gap:6px;flex-wrap:wrap}
+input[type=search]{flex:1;min-width:140px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--tx);font:inherit}
+button{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer}
+button:hover{border-color:var(--acc)}
+button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:8px 0 2px}
+.chips button{white-space:nowrap;padding:4px 10px;border-radius:999px;font-size:13px}
+main{padding:10px 14px 40px;max-width:760px;margin:auto}
+h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:18px 0 6px}
+.row{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:6px}
+.row.done{opacity:.55}
+.top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.nm{font-weight:600}
+.note{color:var(--mut);font-size:12.5px}
+.cnt{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.cnt input{width:78px;text-align:right;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--tx);font:inherit}
+.mini{height:6px;background:var(--bar);border-radius:4px;margin:8px 0;overflow:hidden}
+.mini>i{display:block;height:100%;background:var(--acc)}
+.btns{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.btns button{padding:3px 9px;font-size:13px}
+.stk{color:var(--mut);font-size:12.5px;margin-left:auto}
+</style>
 </head>
 <body>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.150.1/examples/js/controls/PointerLockControls.js"></script>
-
+<header>
+<h1>⛏️ Castle 2 · Raw Materials</h1>
+<div class="bar"><i id="pb"></i></div>
+<div class="sum" id="sum"></div>
+<div class="note" style="margin-bottom:6px">Needs of 30 or more are counted in stacks, rounded up (2 stacks + a few = 3 stacks). Under 30 is counted in single items.</div>
+<div class="tools">
+<input type="search" id="q" placeholder="Search materials…">
+<button id="hide">Hide done</button>
+<button id="theme">Theme</button>
+<button id="reset">Reset</button>
+</div>
+<div class="chips" id="chips"></div>
+</header>
+<main id="list"></main>
 <script>
-// Scene setup
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87CEEB); // Sky blue
-
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
-
-// Lights
-const light = new THREE.HemisphereLight(0xffffff, 0x444444);
-light.position.set(0, 200, 0);
-scene.add(light);
-
-// Texture loader
-const textureLoader = new THREE.TextureLoader();
-const grassTexture = textureLoader.load('https://i.imgur.com/4KX0W7N.png');
-const dirtTexture = textureLoader.load('https://i.imgur.com/WI7czwv.png');
-const stoneTexture = textureLoader.load('https://i.imgur.com/GWJ2bD9.png');
-
-// Create ground (grass blocks)
-const groundSize = 30;
-const blockSize = 1;
-
-let blocks = []; // store blocks for breaking and placing
-
-for (let x = -groundSize/2; x < groundSize/2; x++) {
-  for (let z = -groundSize/2; z < groundSize/2; z++) {
-    const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
-    const material = new THREE.MeshLambertMaterial({ map: grassTexture });
-    const block = new THREE.Mesh(geometry, material);
-    block.position.set(x * blockSize, -blockSize/2, z * blockSize);
-    scene.add(block);
-    blocks.push(block);
-  }
+const D=[
+["Mine / dig","Cobbled deepslate",3933,"Stonecutter: bricks, tiles, stairs, walls 1:1, slabs 2 per"],
+["Mine / dig","Iron ingots",154,"Lanterns, chains, cauldrons, anvil, blast furnace, etc."],
+["Mine / dig","Coal / charcoal",35,"Torches (133) and campfire"],
+["Mine / dig","Andesite",42,"Mine it, or diorite + cobblestone; stonecutter for polished/stairs/slabs"],
+["Mine / dig","Cobblestone",48,"4 furnaces, 2 brewing stands, stone parts"],
+["Mine / dig","Clay balls",75,"Bricks for 25 flower pots"],
+["Mine / dig","Diamonds",4,"2 enchanting tables"],
+["Mine / dig","Obsidian",48,"Enchanting tables 8, ender chests 40"],
+["Mine / dig","Sculk catalyst",11,"Silk Touch, deep dark / ancient city"],
+["Mine / dig","Large amethyst bud",5,"Silk Touch on a geode"],
+["Wood","Mangrove logs",640,"Planks, fences, slabs, stairs, trapdoors, signs, doors + 104 for log blocks"],
+["Wood","Any logs",256,"Bookshelves, chests, barrels, ladders, lecterns, smokers, oak logs"],
+["Wood","Spruce leaves",13,"Shears"],
+["Wood","Spruce sapling",3,""],
+["Farm / animals","Wool",73,"Gray 32, light gray 26, red 15 (carpets, banner, bed)"],
+["Farm / animals","Sugar cane",700,"Paper for ~233 books"],
+["Farm / animals","Leather",233,"Books for bookshelves, lecterns, enchanting tables"],
+["Farm / animals","Wheat",315,"35 hay bales (9 each)"],
+["Farm / animals","String",24,"Red candles and scaffolding"],
+["Farm / animals","Honeycomb",23,"Red candles"],
+["Farm / animals","Gray dye",32,"Black + white dye, or ink sac + bone meal"],
+["Farm / animals","Light gray dye",26,"Gray + white dye, azure bluet or oxeye daisy"],
+["Farm / animals","Red dye",38,"Poppies, red tulips, beetroot (candles + wool)"],
+["Farm / animals","Bamboo",6,"Scaffolding"],
+["Plants","Flowering azalea",13,""],
+["Plants","Azalea",9,""],
+["Plants","Grass block",6,"Silk Touch"],
+["Nether / mobs","Blaze rods",5,"2 brewing stands + 5 ender eyes"],
+["Nether / mobs","Ender pearl",5,"Ender eyes for 5 ender chests"],
+["Nether / mobs","Crimson fungus",3,"Crimson forest"],
+["Nether / mobs","Crimson roots",2,"Crimson forest"],
+["Nether / mobs","Skeleton skull",2,"Charged creeper kill"],
+["Nether / mobs","Cobweb",1,"Shears or sword"]
+];
+const K="mcmats.castle2.v1";
+const SZ={"Ender pearl":16};
+const U=D.map(d=>d[2]<30?1:(SZ[d[1]]||64));
+const N=D.map((d,i)=>Math.ceil(d[2]/U[i]));
+let S={};try{S=JSON.parse(localStorage.getItem(K)||"{}")}catch(e){}
+let cat="All",hide=false,q="";
+const $=id=>document.getElementById(id);
+const cats=["All",...new Set(D.map(d=>d[0]))];
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}
+function stk(i){if(U[i]===1)return "single items";const z=U[i];return "≈ "+D[i][2].toLocaleString()+" items"+(z!==64?" (stacks of "+z+")":"")}
+function render(){
+ $("chips").innerHTML=cats.map(c=>`<button class="${c===cat?"on":""}" data-c="${c}">${c}</button>`).join("");
+ let tot=0,sum=0,dn=0;
+ D.forEach((d,i)=>{const h=Math.min(S[i]||0,N[i]);tot++;sum+=h/N[i];if(h>=N[i])dn++});
+ const pct=Math.round(sum/tot*100);
+ $("pb").style.width=pct+"%";
+ $("sum").textContent=pct+"% overall · "+dn+" of "+tot+" materials complete";
+ $("hide").classList.toggle("on",hide);
+ let html="",last="";
+ D.forEach((d,i)=>{
+  if(cat!=="All"&&d[0]!==cat)return;
+  const h=S[i]||0,done=h>=N[i];
+  if(hide&&done)return;
+  if(q&&!(d[1]+" "+d[3]).toLowerCase().includes(q))return;
+  if(d[0]!==last){html+=`<h2>${d[0]}</h2>`;last=d[0]}
+  const p=Math.min(100,h/N[i]*100);
+  html+=`<div class="row ${done?"done":""}"><div class="top"><div><div class="nm">${done?"✅ ":""}${d[1]}</div><div class="note">${d[3]}</div></div>
+  <div class="cnt"><input type="number" min="0" inputmode="numeric" value="${h}" data-i="${i}"> / ${N[i]} ${U[i]===1?(N[i]>1?"items":"item"):(N[i]>1?"stacks":"stack")}</div></div>
+  <div class="mini"><i style="width:${p}%"></i></div>
+  <div class="btns"><button data-i="${i}" data-a="-1">−1</button><button data-i="${i}" data-a="1">+1</button><button data-i="${i}" data-a="10">+10</button><button data-i="${i}" data-a="full">Done</button><span class="stk">${stk(i)}</span></div></div>`;
+ });
+ $("list").innerHTML=html||'<p class="note">Nothing to show.</p>';
 }
-
-// Pointer Lock Controls
-const controls = new THREE.PointerLockControls(camera, document.body);
-document.addEventListener('click', () => {
-  controls.lock();
-}, false);
-
-// Movement
-const velocity = new THREE.Vector3();
-const direction = new THREE.Vector3();
-const move = { forward: false, backward: false, left: false, right: false };
-
-document.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyW') move.forward = true;
-  if (e.code === 'KeyS') move.backward = true;
-  if (e.code === 'KeyA') move.left = true;
-  if (e.code === 'KeyD') move.right = true;
+document.addEventListener("click",e=>{
+ const b=e.target.closest("button");if(!b)return;
+ if(b.dataset.c){cat=b.dataset.c;render();return}
+ if(b.dataset.a){const i=+b.dataset.i,a=b.dataset.a;
+  S[i]=Math.max(0,a==="full"?N[i]:(S[i]||0)+ +a);save();render();}
 });
-
-document.addEventListener('keyup', (e) => {
-  if (e.code === 'KeyW') move.forward = false;
-  if (e.code === 'KeyS') move.backward = false;
-  if (e.code === 'KeyA') move.left = false;
-  if (e.code === 'KeyD') move.right = false;
+document.addEventListener("change",e=>{
+ if(e.target.dataset.i&&e.target.type==="number"){S[e.target.dataset.i]=Math.max(0,parseInt(e.target.value)||0);save();render()}
 });
-
-// Block interaction
-let raycaster = new THREE.Raycaster();
-let mouse = new THREE.Vector2();
-let selectedBlock = null;
-
-document.addEventListener('mousemove', (event) => {
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-});
-
-document.addEventListener('mousedown', (event) => {
-  if (event.button === 0) { // Left-click - Break block
-    if (selectedBlock) {
-      scene.remove(selectedBlock);
-      blocks = blocks.filter(block => block !== selectedBlock);
-    }
-  }
-  if (event.button === 2) { // Right-click - Place block
-    if (selectedBlock) {
-      const newBlock = new THREE.Mesh(
-        new THREE.BoxGeometry(blockSize, blockSize, blockSize),
-        new THREE.MeshLambertMaterial({ map: grassTexture })
-      );
-      newBlock.position.set(selectedBlock.position.x, selectedBlock.position.y + blockSize, selectedBlock.position.z);
-      scene.add(newBlock);
-      blocks.push(newBlock);
-    }
-  }
-});
-
-// Raycast to detect block under the cursor
-function updateSelectedBlock() {
-  raycaster.updateMatrixWorld();
-  raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(blocks);
-
-  if (intersects.length > 0) {
-    selectedBlock = intersects[0].object;
-  } else {
-    selectedBlock = null;
-  }
-}
-
-// Set initial camera position
-camera.position.y = 2;
-camera.position.z = 5;
-
-function animate() {
-  requestAnimationFrame(animate);
-
-  updateSelectedBlock();
-
-  if (controls.isLocked) {
-    direction.z = Number(move.forward) - Number(move.backward);
-    direction.x = Number(move.right) - Number(move.left);
-    direction.normalize(); // ensures consistent movement speed in all directions
-
-    const speed = 0.05;
-    if (move.forward || move.backward) controls.moveForward(direction.z * speed);
-    if (move.left || move.right) controls.moveRight(direction.x * speed);
-  }
-
-  renderer.render(scene, camera);
-}
-
-animate();
-
-// Resize
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+$("q").addEventListener("input",e=>{q=e.target.value.toLowerCase();render()});
+$("hide").onclick=()=>{hide=!hide;render()};
+$("reset").onclick=()=>{if(confirm("Reset all progress?")){S={};save();render()}};
+$("theme").onclick=()=>{const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==="dark":matchMedia("(prefers-color-scheme:dark)").matches;r.dataset.theme=dark?"light":"dark"};
+render();
 </script>
-
 </body>
 </html>
